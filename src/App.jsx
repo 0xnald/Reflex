@@ -24,7 +24,18 @@ function PnLShareModal({ position, price, onClose }) {
     const draw = () => {
       const isLong = (position.holdSide === 'long' || position.side === 'open_long');
       const entryPrice = parseFloat(position.openPrice || '0');
-      const currentPrice = parseFloat(position.marketPrice || price || '0');
+      const size = parseFloat(position.total || '0');
+      const unrealizedPL = parseFloat(position.unrealizedPL || '0');
+      
+      let currentPrice = parseFloat(position.marketPrice || '0');
+      if (currentPrice <= 0 && entryPrice > 0 && size > 0) {
+        const sideMultiplier = isLong ? 1 : -1;
+        currentPrice = entryPrice + (unrealizedPL / (size * sideMultiplier));
+      }
+      if (currentPrice <= 0) {
+        currentPrice = entryPrice;
+      }
+
       const leverage = 5;
       
       let roiPct = 0;
@@ -32,7 +43,6 @@ function PnLShareModal({ position, price, onClose }) {
         const sideMultiplier = isLong ? 1 : -1;
         roiPct = ((currentPrice - entryPrice) / entryPrice) * sideMultiplier * leverage * 100;
       }
-      const unrealizedPL = parseFloat(position.unrealizedPL || '0');
 
       // 1. Background Gradient
       const grad = ctx.createLinearGradient(0, 0, 800, 420);
