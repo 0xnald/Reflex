@@ -852,7 +852,7 @@ export default function App() {
               <div>
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>TRADING SIZE ALLOCATION</span>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {['auto', '0.01', '0.05', '0.10'].map((sz) => (
+                  {['auto', '10%', '0.01', '0.05', '0.10'].map((sz) => (
                     <button
                       key={sz}
                       onClick={() => setTempSize(sz)}
@@ -866,7 +866,7 @@ export default function App() {
                         color: tempSize === sz ? 'var(--neon-green)' : 'var(--text-secondary)',
                       }}
                     >
-                      {sz === 'auto' ? 'AUTO (AI)' : `${sz} BTC`}
+                      {sz === 'auto' ? 'AUTO (AI)' : (sz === '10%' ? '10% CAPITAL' : `${sz} BTC`)}
                     </button>
                   ))}
                 </div>

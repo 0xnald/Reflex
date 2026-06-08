@@ -146,9 +146,24 @@ async function tick() {
       if (decisionResult.decision === 'BUY' || decisionResult.decision === 'SELL') {
         const side = decisionResult.decision === 'BUY' ? 'open_long' : 'open_short';
         
-        const rawSize = tradingSizeConfig === 'auto' ? decisionResult.size : parseFloat(tradingSizeConfig);
-        const finalSize = isNaN(rawSize) ? 0.01 : rawSize;
-        
+        const entryPrice = parseFloat(ticker.lastPr);
+        let finalSize = 0.01;
+        if (tradingSizeConfig === '10%') {
+          // Allocate 10% of current capital as margin (at 5x leverage, 50% notional exposure)
+          const margin = currentBalance * 0.10;
+          const leverage = 5.0;
+          finalSize = parseFloat(((margin * leverage) / entryPrice).toFixed(4));
+          broadcastLog('info', `Configured for 10% Capital Margin Allocation. Balance: $${currentBalance.toFixed(2)}, Target Margin: $${margin.toFixed(2)}, Notional Exposure: $${(margin * leverage).toFixed(2)}`);
+        } else {
+          const rawSize = tradingSizeConfig === 'auto' ? decisionResult.size : parseFloat(tradingSizeConfig);
+          finalSize = isNaN(rawSize) ? 0.01 : rawSize;
+        }
+
+        // Safety check to ensure finalSize is valid and positive
+        if (isNaN(finalSize) || finalSize <= 0) {
+          finalSize = 0.01;
+        }
+
         broadcastLog('warning', `Executing Bitget Order: ${side.toUpperCase()} for ${finalSize} BTC...`);
         
         const orderResult = await bitgetService.placeOrder({
@@ -160,7 +175,6 @@ async function tick() {
           marginCoin: 'USDT'
         });
 
-        const entryPrice = parseFloat(ticker.lastPr);
         const slPct = parseFloat(decisionResult.stopLossPct) || 1.5;
         const tpPct = parseFloat(decisionResult.takeProfitPct) || 3.0;
         const stopLossPrice = side === 'open_long' 
