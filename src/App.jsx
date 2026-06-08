@@ -3,6 +3,399 @@ import { io } from 'socket.io-client';
 
 const BACKEND_URL = 'http://localhost:3001';
 
+function PnLShareModal({ position, price, onClose }) {
+  const shareCanvasRef = useRef(null);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  useEffect(() => {
+    if (!position || !shareCanvasRef.current) return;
+    
+    const canvas = shareCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = 800;
+    canvas.height = 420;
+    
+    ctx.clearRect(0, 0, 800, 420);
+    
+    const logo = new Image();
+    logo.src = '/logo.png';
+    
+    const draw = () => {
+      const isLong = (position.holdSide === 'long' || position.side === 'open_long');
+      const entryPrice = parseFloat(position.openPrice || '0');
+      const currentPrice = parseFloat(position.marketPrice || price || '0');
+      const leverage = 5;
+      
+      let roiPct = 0;
+      if (entryPrice > 0 && currentPrice > 0) {
+        const sideMultiplier = isLong ? 1 : -1;
+        roiPct = ((currentPrice - entryPrice) / entryPrice) * sideMultiplier * leverage * 100;
+      }
+      const unrealizedPL = parseFloat(position.unrealizedPL || '0');
+
+      // 1. Background Gradient
+      const grad = ctx.createLinearGradient(0, 0, 800, 420);
+      grad.addColorStop(0, '#05070a');
+      grad.addColorStop(0.5, '#0a0d12');
+      grad.addColorStop(1, isLong ? '#041c0e' : '#22040b');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 800, 420);
+
+      // Glows
+      const topGlow = ctx.createRadialGradient(0, 0, 10, 0, 0, 200);
+      topGlow.addColorStop(0, 'rgba(0, 255, 102, 0.06)');
+      topGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = topGlow;
+      ctx.fillRect(0, 0, 300, 200);
+
+      const bottomGlow = ctx.createRadialGradient(800, 420, 10, 800, 420, 250);
+      bottomGlow.addColorStop(0, isLong ? 'rgba(0, 255, 102, 0.08)' : 'rgba(255, 51, 102, 0.08)');
+      bottomGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = bottomGlow;
+      ctx.fillRect(500, 200, 300, 220);
+
+      // Card stroke
+      ctx.strokeStyle = isLong ? 'rgba(0, 255, 102, 0.15)' : 'rgba(255, 51, 102, 0.15)';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, 794, 414);
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(12, 12, 776, 396);
+
+      // 2. Reflex Logo & Name
+      try {
+        if (logo.complete && logo.naturalWidth !== 0) {
+          ctx.drawImage(logo, 35, 32, 42, 42);
+        } else {
+          ctx.fillStyle = '#00ff66';
+          ctx.beginPath();
+          ctx.moveTo(56, 32);
+          ctx.lineTo(77, 53);
+          ctx.lineTo(56, 74);
+          ctx.lineTo(35, 53);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } catch (e) {
+        ctx.fillStyle = '#00ff66';
+        ctx.beginPath();
+        ctx.moveTo(56, 32);
+        ctx.lineTo(77, 53);
+        ctx.lineTo(56, 74);
+        ctx.lineTo(35, 53);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 20px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText('REFLEX', 90, 50);
+
+      ctx.fillStyle = '#00ff66';
+      ctx.font = '700 11px "JetBrains Mono", monospace';
+      ctx.fillText('COGNITION AGENT', 90, 68);
+
+      // 3. Date
+      const tzOffset = -new Date().getTimezoneOffset() / 60;
+      const tzString = `(UTC${tzOffset >= 0 ? '+' : ''}${tzOffset})`;
+      const now = new Date();
+      const pad = (num) => String(num).padStart(2, '0');
+      const dateStr = `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())} ${tzString}`;
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.font = '12px "JetBrains Mono", monospace';
+      ctx.fillText(dateStr, 35, 110);
+
+      // 4. Bitget Hackathon Brand Badge
+      const badgeX = 580;
+      const badgeY = 32;
+      const badgeW = 185;
+      const badgeH = 32;
+      const radius = 6;
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(badgeX + radius, badgeY);
+      ctx.lineTo(badgeX + badgeW - radius, badgeY);
+      ctx.quadraticCurveTo(badgeX + badgeW, badgeY, badgeX + badgeW, badgeY + radius);
+      ctx.lineTo(badgeX + badgeW, badgeY + badgeH - radius);
+      ctx.quadraticCurveTo(badgeX + badgeW, badgeY + badgeH, badgeX + badgeW - radius, badgeY + badgeH);
+      ctx.lineTo(badgeX + radius, badgeY + badgeH);
+      ctx.quadraticCurveTo(badgeX, badgeY + badgeH, badgeX, badgeY + badgeH - radius);
+      ctx.lineTo(badgeX, badgeY + radius);
+      ctx.quadraticCurveTo(badgeX, badgeY, badgeX + radius, badgeY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚡ BITGET HACKATHON', badgeX + (badgeW / 2), badgeY + 20);
+      ctx.textAlign = 'left';
+
+      // 5. Position Details
+      const symbolText = (position.symbol || 'BTCUSDT').toUpperCase();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = '15px "JetBrains Mono", monospace';
+      ctx.fillText(`${symbolText} Perpetual`, 35, 175);
+
+      // Side
+      const sideX = 35;
+      const sideY = 195;
+      const sideW = 55;
+      const sideH = 22;
+      
+      ctx.fillStyle = isLong ? 'rgba(0, 255, 102, 0.15)' : 'rgba(255, 51, 102, 0.15)';
+      ctx.strokeStyle = isLong ? '#00ff66' : '#ff3366';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sideX + 4, sideY);
+      ctx.lineTo(sideX + sideW - 4, sideY);
+      ctx.quadraticCurveTo(sideX + sideW, sideY, sideX + sideW, sideY + 4);
+      ctx.lineTo(sideX + sideW, sideY + sideH - 4);
+      ctx.quadraticCurveTo(sideX + sideW, sideY + sideH, sideX + sideW - 4, sideY + sideH);
+      ctx.lineTo(sideX + 4, sideY + sideH);
+      ctx.quadraticCurveTo(sideX, sideY + sideH, sideX, sideY + sideH - 4);
+      ctx.lineTo(sideX, sideY + 4);
+      ctx.quadraticCurveTo(sideX, sideY, sideX + 4, sideY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = isLong ? '#00ff66' : '#ff3366';
+      ctx.font = 'bold 11px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(isLong ? 'LONG' : 'SHORT', sideX + (sideW / 2), sideY + 15);
+      ctx.textAlign = 'left';
+
+      // Leverage
+      const levX = 100;
+      const levY = 195;
+      const levW = 45;
+      const levH = 22;
+      
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.beginPath();
+      ctx.moveTo(levX + 4, levY);
+      ctx.lineTo(levX + levW - 4, levY);
+      ctx.quadraticCurveTo(levX + levW, levY, levX + levW, levY + 4);
+      ctx.lineTo(levX + levW, levY + levH - 4);
+      ctx.quadraticCurveTo(levX + levW, levY + levH, levX + levW - 4, levY + levH);
+      ctx.lineTo(levX + 4, levY + levH);
+      ctx.quadraticCurveTo(levX, levY + levH, levX, levY + levH - 4);
+      ctx.lineTo(levX, levY + 4);
+      ctx.quadraticCurveTo(levX, levY, levX + 4, levY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.font = 'bold 11px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('5x', levX + (levW / 2), levY + 15);
+      ctx.textAlign = 'left';
+
+      // 6. ROI
+      const sign = roiPct >= 0 ? '+' : '';
+      const roiText = `${sign}${roiPct.toFixed(2)}%`;
+      
+      ctx.fillStyle = roiPct >= 0 ? '#00ff66' : '#ff3366';
+      ctx.font = '800 64px "Plus Jakarta Sans", sans-serif';
+      ctx.shadowColor = roiPct >= 0 ? 'rgba(0, 255, 102, 0.3)' : 'rgba(255, 51, 102, 0.3)';
+      ctx.shadowBlur = 20;
+      ctx.fillText(roiText, 30, 280);
+      ctx.shadowBlur = 0;
+
+      // 7. PnL absolute
+      const pnlSign = unrealizedPL >= 0 ? '+' : '';
+      const pnlText = `${pnlSign}${unrealizedPL.toFixed(4)} USDT`;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 16px "JetBrains Mono", monospace';
+      ctx.fillText(pnlText, 35, 325);
+
+      // 8. Prices
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.font = '13px "JetBrains Mono", monospace';
+      ctx.fillText('Entry price', 410, 180);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText(entryPrice.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }), 410, 210);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.font = '13px "JetBrains Mono", monospace';
+      ctx.fillText('Current price', 410, 265);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText(currentPrice.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }), 410, 295);
+
+      // 9. Arrow
+      ctx.save();
+      ctx.translate(685, 230);
+      const angle = isLong ? 45 * Math.PI / 180 : 135 * Math.PI / 180;
+      ctx.rotate(angle);
+
+      ctx.shadowColor = isLong ? 'rgba(0, 255, 102, 0.45)' : 'rgba(255, 51, 102, 0.45)';
+      ctx.shadowBlur = 30;
+      ctx.shadowOffsetY = 4;
+
+      ctx.beginPath();
+      ctx.moveTo(0, -60);
+      ctx.lineTo(40, -15);
+      ctx.lineTo(16, -15);
+      ctx.lineTo(16, 50);
+      ctx.lineTo(-16, 50);
+      ctx.lineTo(-16, -15);
+      ctx.lineTo(-40, -15);
+      ctx.closePath();
+
+      const arrowGrad = ctx.createLinearGradient(-40, -60, 40, 50);
+      if (isLong) {
+        arrowGrad.addColorStop(0, '#00ff66');
+        arrowGrad.addColorStop(0.4, '#00f0ff');
+        arrowGrad.addColorStop(1, '#005522');
+      } else {
+        arrowGrad.addColorStop(0, '#ff3366');
+        arrowGrad.addColorStop(0.4, '#ffaa00');
+        arrowGrad.addColorStop(1, '#550011');
+      }
+      ctx.fillStyle = arrowGrad;
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-40, -15);
+      ctx.lineTo(0, -60);
+      ctx.lineTo(40, -15);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(16, -15);
+      ctx.lineTo(16, 50);
+      ctx.lineTo(-16, 50);
+      ctx.stroke();
+
+      ctx.restore();
+
+      // 10. Watermark
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(35, 360);
+      ctx.lineTo(765, 360);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.font = 'bold 11px "JetBrains Mono", monospace';
+      ctx.fillText('LIVE ON BITGET HACKATHON', 35, 388);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.font = '11px "JetBrains Mono", monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText('REFLEX COGNITIVE SYSTEM', 765, 388);
+      ctx.textAlign = 'left';
+    };
+
+    logo.onload = draw;
+    logo.onerror = draw;
+    draw();
+  }, [position, price]);
+
+  const copyToClipboard = async () => {
+    const canvas = shareCanvasRef.current;
+    if (!canvas) return;
+    try {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              [blob.type]: blob
+            })
+          ]);
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2000);
+        } catch (err) {
+          console.error("Clipboard write failed", err);
+          alert("Clipboard copy not supported by browser. Please use Download PNG.");
+        }
+      }, 'image/png');
+    } catch (err) {
+      console.error("Canvas toBlob failed", err);
+    }
+  };
+
+  const downloadPNG = () => {
+    const canvas = shareCanvasRef.current;
+    if (!canvas) return;
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reflex_${(position.symbol || 'position').toLowerCase()}_pnl.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  return (
+    <div className="audit-alert-overlay">
+      <div className="pnl-modal">
+        <div className="panel-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ color: 'var(--neon-green)', letterSpacing: '1.5px' }}>
+            ⚡ REFLEX POSITION SHARE
+          </h3>
+          <button 
+            onClick={onClose} 
+            className="btn btn-danger"
+            style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px' }}
+          >
+            CLOSE PREVIEW
+          </button>
+        </div>
+        <div className="audit-modal-body" style={{ padding: '20px', gap: '16px' }}>
+          <div className="pnl-canvas-wrapper">
+            <canvas ref={shareCanvasRef} className="pnl-preview-canvas" />
+          </div>
+          <div className="pnl-actions-row">
+            <button 
+              onClick={copyToClipboard}
+              className="btn btn-primary"
+              style={{ borderColor: 'var(--neon-green)', color: 'var(--neon-green)', padding: '10px 18px', fontWeight: '700' }}
+            >
+              COPY TO CLIPBOARD
+            </button>
+            <button 
+              onClick={downloadPNG}
+              className="btn btn-primary"
+              style={{ borderColor: 'var(--neon-cyan)', color: 'var(--neon-cyan)', padding: '10px 18px', fontWeight: '700' }}
+            >
+              DOWNLOAD PNG CARD
+            </button>
+          </div>
+        </div>
+      </div>
+      {copySuccess && (
+        <div className="pnl-toast">
+          ✓ COPIED TO CLIPBOARD!
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [balance, setBalance] = useState(10000.0);
@@ -29,6 +422,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [config, setConfig] = useState(null);
   const [tempSize, setTempSize] = useState('auto');
+  const [sharingPosition, setSharingPosition] = useState(null);
 
   useEffect(() => {
     if (config?.tradingSize && !showSettings) {
@@ -660,6 +1054,7 @@ export default function App() {
                         <div 
                           key={idx} 
                           className={`position-item-sidebar ${holdSide === 'long' ? 'side-long' : 'side-short'}`}
+                          onClick={() => setSharingPosition(pos)}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', marginBottom: '4px' }}>
                             <span>{pos.symbol} {holdSide.toUpperCase()}</span>
@@ -670,7 +1065,7 @@ export default function App() {
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
                             <span>Size: {pos.total || '0'} BTC</span>
-                            <span>Entry: ${openPrice.toFixed(1)}</span>
+                            <span className="share-hover-text" style={{ color: holdSide === 'long' ? 'var(--neon-green)' : 'var(--neon-red)', fontWeight: '700' }}>share card ↗</span>
                           </div>
                         </div>
                       );
@@ -903,6 +1298,15 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Share Position PnL Modal */}
+      {sharingPosition && (
+        <PnLShareModal 
+          position={sharingPosition} 
+          price={price} 
+          onClose={() => setSharingPosition(null)} 
+        />
       )}
     </>
   );
