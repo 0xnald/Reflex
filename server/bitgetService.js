@@ -98,11 +98,35 @@ let mockTickers = {
   'ETHUSDT': 3500.0,
   'SOLUSDT': 145.0
 };
+let mockNews = "";
+
+function setMockNews(news) {
+  mockNews = news ? news.toLowerCase() : "";
+}
 
 // Simulate random price updates for mock mode
 setInterval(() => {
+  let bias = 0.5; // neutral default (random walk)
+  let scale = 0.002; // default 0.2% max change
+
+  if (mockNews) {
+    const bearishWords = ["dump", "crash", "drop", "bearish", "hike", "negative", "loss", "down", "bad", "sell"];
+    const bullishWords = ["pump", "moon", "bullish", "rally", "positive", "gain", "up", "good", "buy"];
+
+    const isBearish = bearishWords.some(w => mockNews.includes(w));
+    const isBullish = bullishWords.some(w => mockNews.includes(w));
+
+    if (isBearish) {
+      bias = 0.75; // 75% chance of going down
+      scale = 0.015; // 1.5% max change (fast volatility dump)
+    } else if (isBullish) {
+      bias = 0.25; // 25% chance of going down (75% chance of going up)
+      scale = 0.015; // 1.5% max change (fast volatility pump)
+    }
+  }
+
   for (let sym in mockTickers) {
-    const pct = (Math.random() - 0.5) * 0.002; // max 0.1% change
+    const pct = (Math.random() - bias) * scale;
     mockTickers[sym] = parseFloat((mockTickers[sym] * (1 + pct)).toFixed(2));
     
     // Update PnL of open positions
@@ -208,6 +232,7 @@ function handleMockRequest(method, path, params, data) {
 
 export default {
   isMockMode: () => isMockMode,
+  setMockNews,
   getTicker: (symbol) => request('GET', '/api/v2/mix/market/ticker', { productType: 'USDT-FUTURES', symbol }),
   getBalances: () => request('GET', '/api/v2/mix/account/accounts', { productType: 'USDT-FUTURES' }),
   getPositions: () => request('GET', '/api/v2/mix/position/all-position', { productType: 'USDT-FUTURES' }),

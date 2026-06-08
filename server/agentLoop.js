@@ -4,6 +4,27 @@ import bitgetService from './bitgetService.js';
 import * as qwenService from './qwenService.js';
 
 const rulesPath = path.resolve('server/rules.json');
+const activeTradesPath = path.resolve('server/activeTrades.json');
+
+function loadActiveTrades() {
+  try {
+    if (fs.existsSync(activeTradesPath)) {
+      const data = fs.readFileSync(activeTradesPath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error("Error loading active trades:", error.message);
+  }
+  return [];
+}
+
+function saveActiveTrades(trades) {
+  try {
+    fs.writeFileSync(activeTradesPath, JSON.stringify(trades, null, 2), 'utf8');
+  } catch (error) {
+    console.error("Error saving active trades:", error.message);
+  }
+}
 
 let isLoopRunning = false;
 let loopInterval = null;
@@ -12,7 +33,7 @@ let currentNews = "Market trading stable. No high-impact events.";
 let tradingSizeConfig = "auto";
 
 // Local state to track active trades and detect closures/losses
-let activeTradesState = []; 
+let activeTradesState = loadActiveTrades(); 
 let previousBalance = 10000.0;
 
 function loadRules() {
@@ -136,35 +157,40 @@ async function tick() {
           }
         };
         activeTradesState.push(newTradeRecord);
+        saveActiveTrades(activeTradesState);
         broadcastLog('success', `Trade successfully placed! Target entry: ${entryPrice}. Stop Loss: ${stopLossPrice.toFixed(2)}`);
       }
     } else {
       // Manage active positions (simulate stop-loss triggers in mock mode or check status)
       broadcastLog('info', `Managing ${positionsList.length} open position(s).`);
       
-      // Stop-loss simulation logic for mock mode
-      if (bitgetService.isMockMode()) {
-        for (let i = activeTradesState.length - 1; i >= 0; i--) {
-          const trade = activeTradesState[i];
-          const currentPrice = parseFloat(ticker.lastPr);
-          const isLong = trade.side === 'open_long';
+      // Stop-loss / Take-profit execution monitor
+      for (let i = activeTradesState.length - 1; i >= 0; i--) {
+        const trade = activeTradesState[i];
+        if (trade.closed) continue; // Skip already closed
 
-          const hitSL = isLong ? (currentPrice <= trade.stopLossPrice) : (currentPrice >= trade.stopLossPrice);
-          const hitTP = isLong ? (currentPrice >= trade.takeProfitPrice) : (currentPrice <= trade.takeProfitPrice);
+        const currentPrice = parseFloat(ticker.lastPr);
+        const isLong = trade.side === 'open_long';
 
-          if (hitSL || hitTP) {
-            const closeSide = isLong ? 'close_long' : 'close_short';
-            broadcastLog('warning', `Stop Loss / Take Profit Hit at ${currentPrice.toFixed(2)}! Triggering position close...`);
-            
-            await bitgetService.placeOrder({
-              symbol: trade.symbol,
-              marginMode: 'isolated',
-              side: closeSide,
-              size: trade.size.toString(),
-              orderType: 'market',
-              marginCoin: 'USDT'
-            });
-          }
+        const hitSL = isLong ? (currentPrice <= trade.stopLossPrice) : (currentPrice >= trade.stopLossPrice);
+        const hitTP = isLong ? (currentPrice >= trade.takeProfitPrice) : (currentPrice <= trade.takeProfitPrice);
+
+        if (hitSL || hitTP) {
+          const closeSide = isLong ? 'close_long' : 'close_short';
+          broadcastLog('warning', `Stop Loss / Take Profit Hit at ${currentPrice.toFixed(2)}! Triggering position close...`);
+          
+          await bitgetService.placeOrder({
+            symbol: trade.symbol,
+            marginMode: 'isolated',
+            side: closeSide,
+            size: trade.size.toString(),
+            orderType: 'market',
+            marginCoin: 'USDT'
+          });
+
+          trade.closed = true;
+          trade.exitPrice = currentPrice;
+          saveActiveTrades(activeTradesState);
         }
       }
     }
@@ -179,14 +205,14 @@ async function tick() {
 
 // Checks if positions we previously tracked have closed, and audits any losses
 async function detectAndAuditClosedPositions(currentPositions, currentBalance, ticker) {
-  // Check if any tracked trade in activeTradesState is no longer in currentPositions
+  // Check if any tracked trade in activeTradesState is no longer in currentPositions or marked closed
   for (let i = activeTradesState.length - 1; i >= 0; i--) {
     const trackedTrade = activeTradesState[i];
     const isStillActive = currentPositions.some(p => p.symbol === trackedTrade.symbol && p.holdSide === (trackedTrade.side === 'open_long' ? 'long' : 'short'));
 
-    if (!isStillActive) {
+    if (!isStillActive || trackedTrade.closed) {
       // Position closed! Calculate realized PnL
-      const finalPrice = parseFloat(ticker.lastPr);
+      const finalPrice = trackedTrade.exitPrice || parseFloat(ticker.lastPr);
       const direction = trackedTrade.side === 'open_long' ? 1 : -1;
       const pnl = direction * (finalPrice - trackedTrade.entryPrice) * trackedTrade.size;
       
@@ -233,6 +259,7 @@ async function detectAndAuditClosedPositions(currentPositions, currentBalance, t
 
       // Remove from tracking state
       activeTradesState.splice(i, 1);
+      saveActiveTrades(activeTradesState);
     }
   }
 }
@@ -255,6 +282,9 @@ export function stopLoop() {
 
 export function injectNews(news) {
   currentNews = news;
+  if (bitgetService.setMockNews) {
+    bitgetService.setMockNews(news);
+  }
   broadcastLog('info', `External news event injected: "${news}"`);
 }
 
