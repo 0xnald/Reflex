@@ -32,7 +32,7 @@ app.get('/api/status', (req, res) => {
 app.post('/api/toggle', (req, res) => {
   const { running } = req.body;
   if (running) {
-    agentLoop.startLoop(io, 15000); // 15s ticks for fast interactive demo
+    agentLoop.startLoop(io, 45000); // 45s ticks to accommodate LLM completion latency
   } else {
     agentLoop.stopLoop();
   }
@@ -101,6 +101,6 @@ httpServer.listen(PORT, () => {
   
   // Start the agent loop automatically if configured to run on startup
   if (process.env.AUTO_START_AGENT === 'true') {
-    agentLoop.startLoop(io, 15000);
+    agentLoop.startLoop(io, 45000);
   }
 });

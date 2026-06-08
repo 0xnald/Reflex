@@ -1,0 +1,35 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "side": "open_long",
+    "size": 0.001,
+    "entryPrice": 63115.5,
+    "stopLossPrice": 62168.7675,
+    "takeProfitPrice": 65008.965000000004,
+    "orderId": "1447804019476168705",
+    "timestamp": 1780909297842,
+    "marketConditionsAtEntry": {
+      "price": 63115.5,
+      "news": "Market trading stable. No high-impact events.",
+      "rules": [
+        "IF daily drawdown exceeds 5%, THEN pause all active entries to protect capital.",
+        "IF news contains 'exchange hack' or 'panic', THEN close active positions and stay flat.",
+        "IF market volatility (ATR) is extreme and price dumps below support, THEN disable all long technical breakout entries.",
+        "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold.",
+        "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold.",
+        "IF news contains 'rate hike' and sentiment score is negative, THEN restrict trading to short positions or stay flat.",
+        "IF news contains 'rate hike' and sentiment score is negative, THEN restrict trading to short positions or stay flat.",
+        "IF market volatility (ATR) is extreme and price dumps below support, THEN disable all long technical breakout entries.",
+        "IF news contains 'rate hike' and sentiment score is negative, THEN restrict trading to short positions or stay flat.",
+        "IF market volatility (ATR) is extreme and price dumps below support, THEN disable all long technical breakout entries.",
+        "IF market volatility (ATR) is extreme and price dumps below support, THEN disable all long technical breakout entries.",
+        "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold.",
+        "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold.",
+        "IF news contains 'rate hike' and sentiment score is negative, THEN restrict trading to short positions or stay flat.",
+        "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold.",
+        "IF market volatility (ATR) is extreme and price dumps below support, THEN disable all long technical breakout entries.",
+        "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold."
+      ]
+    }
+  }
+]

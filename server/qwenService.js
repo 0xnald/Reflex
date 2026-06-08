@@ -8,49 +8,38 @@ const QWEN_URL = process.env.BITGET_QWEN_URL || 'https://hackathon.bitgetops.com
 const QWEN_MODEL = process.env.BITGET_QWEN_MODEL || 'qwen3.6-plus';
 
 const hasQwenKey = !!QWEN_API_KEY;
-let isMockQwen = !hasQwenKey;
 
-if (isMockQwen) {
-  console.log("⚠️ No QWEN API key detected. Reflex is running in MOCK mode for LLM cognitive tasks.");
+if (!hasQwenKey) {
+  console.log("⚠️ No QWEN API key detected. Reflex will fail on cognitive tasks as mock fallback is disabled.");
 } else {
   console.log(`🧠 Qwen API client initialized pointing to model: ${QWEN_MODEL} at: ${QWEN_URL}`);
 }
 
 // Helper to make chat completions
 async function getCompletion(systemPrompt, userPrompt) {
-  if (isMockQwen) {
-    return handleMockCompletion(systemPrompt, userPrompt);
+  if (!QWEN_API_KEY) {
+    throw new Error("Qwen API key is not configured in the .env file.");
   }
 
-  try {
-    const response = await axios.post(`${QWEN_URL}/chat/completions`, {
-      model: QWEN_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.2
-    }, {
-      headers: {
-        'Authorization': `Bearer ${QWEN_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000 // 30s timeout
-    });
+  const response = await axios.post(`${QWEN_URL}/chat/completions`, {
+    model: QWEN_MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.2
+  }, {
+    headers: {
+      'Authorization': `Bearer ${QWEN_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    timeout: 60000 // 60s timeout to prevent client-side errors under load
+  });
 
-    const content = response.data.choices[0].message.content;
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const cleanContent = jsonMatch ? jsonMatch[0] : content;
-    return JSON.parse(cleanContent);
-  } catch (error) {
-    console.error("🔴 Qwen API call failed:", error.message);
-    if (error.response) {
-      console.error("Qwen API Error Response:", error.response.data);
-    }
-    // Fallback to mock completion on error to maintain loop runtime
-    console.log("⚠️ Qwen API failed. Falling back to simulated cognitive response.");
-    return handleMockCompletion(systemPrompt, userPrompt);
-  }
+  const content = response.data.choices[0].message.content;
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  const cleanContent = jsonMatch ? jsonMatch[0] : content;
+  return JSON.parse(cleanContent);
 }
 
 // Market analysis cognitive task
@@ -122,60 +111,4 @@ ${currentRules.length > 0 ? currentRules.map((r, i) => `${i + 1}. ${r}`).join('\
 Provide your post-mortem analysis and the new rule in JSON format.`;
 
   return getCompletion(systemPrompt, userPrompt);
-}
-
-// --- Mock LLM Completion Engine ---
-function handleMockCompletion(systemPrompt, userPrompt) {
-  // If userPrompt contains FAILED TRADE DETAILS, it's an audit request
-  if (userPrompt.includes('FAILED TRADE DETAILS')) {
-    // Audit mock
-    const newRules = [
-      "IF market volatility (ATR) is extreme and price dumps below support, THEN disable all long technical breakout entries.",
-      "IF news contains 'rate hike' and sentiment score is negative, THEN restrict trading to short positions or stay flat.",
-      "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold."
-    ];
-    const chosenRule = newRules[Math.floor(Math.random() * newRules.length)];
-    
-    return {
-      report: `### Trade Post-Mortem Report
-
-The long entry hypothesis failed because the market experienced sudden downward volatility that breached our stop-loss level.
-The technical indicators (RSI neutral, EMA crossover) suggested a breakout, but macro news/volume overrode the technical structure.
-
-**Key Lessons Learned:**
-- Technical indicators are secondary to high-volume sentiment dumps.
-- Volatility spikes require wider stop-losses or staying out of the market.`,
-      newRule: chosenRule
-    };
-  } else {
-    // Market analysis mock
-    const rand = Math.random();
-    let decision = 'HOLD';
-    let reasoning = 'Market shows no clear trend; waiting for clear technical configuration or sentiment catalysts.';
-    let size = 0.002;
-
-    if (rand < 0.15) {
-      decision = 'BUY';
-      reasoning = 'Technical structure bullish: price holding above 20 EMA with positive volume and neutral RSI indicators.';
-    } else if (rand > 0.85) {
-      decision = 'SELL';
-      reasoning = 'Technical structure bearish: price breaks below local consolidation support with rising selling volume.';
-    }
-
-    // Check if there is an active position to decide to CLOSE
-    if (userPrompt.includes('"symbol"') && !userPrompt.includes('"symbol": []')) {
-      if (Math.random() < 0.25) {
-        decision = 'CLOSE';
-        reasoning = 'Closing position to protect capital due to technical indicator divergence.';
-      }
-    }
-
-    return {
-      decision,
-      reasoning,
-      size,
-      stopLossPct: 1.5,
-      takeProfitPct: 3.0
-    };
-  }
 }

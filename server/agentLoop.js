@@ -27,6 +27,7 @@ function saveActiveTrades(trades) {
 }
 
 let isLoopRunning = false;
+let isTickRunning = false;
 let loopInterval = null;
 let ioInstance = null;
 let currentNews = "Market trading stable. No high-impact events.";
@@ -70,32 +71,58 @@ function broadcastLog(type, message, details = null) {
 
 // Main cognitive trade cycle tick
 async function tick() {
+  if (isTickRunning) {
+    broadcastLog('thinking', 'Tick skipped: previous scan still active.');
+    return;
+  }
+  isTickRunning = true;
   try {
     broadcastLog('thinking', 'Scanning market conditions and active positions...');
 
     // 1. Fetch data from Bitget
     const symbol = 'BTCUSDT';
-    const tickerList = await bitgetService.getTicker(symbol);
-    const ticker = tickerList && tickerList[0];
-    if (!ticker) {
-      throw new Error("Unable to fetch market price.");
+    let ticker = null;
+    try {
+      const tickerList = await bitgetService.getTicker(symbol);
+      ticker = tickerList && tickerList[0];
+    } catch (e) {
+      broadcastLog('danger', `Bitget API Ticker Error: ${e.message}`);
     }
 
-    const balances = await bitgetService.getBalances();
-    const futuresBalance = balances.find(b => b.marginCoin === 'USDT');
-    const currentBalance = futuresBalance ? parseFloat(futuresBalance.equity) : previousBalance;
+    let currentBalance = previousBalance;
+    let futuresBalance = null;
+    try {
+      const balances = await bitgetService.getBalances();
+      futuresBalance = balances ? balances.find(b => b.marginCoin === 'USDT') : null;
+      if (futuresBalance) {
+        currentBalance = parseFloat(futuresBalance.equity);
+      }
+    } catch (e) {
+      broadcastLog('danger', `Bitget API Balance Error: ${e.message}`);
+    }
 
-    const positionsList = await bitgetService.getPositions();
-    
+    let positionsList = [];
+    try {
+      positionsList = await bitgetService.getPositions();
+    } catch (e) {
+      broadcastLog('danger', `Bitget API Positions Error: ${e.message}`);
+    }
+
     // Broadcast updated account details to UI
     if (ioInstance) {
       ioInstance.emit('account_update', {
-        balance: currentBalance,
-        available: futuresBalance ? parseFloat(futuresBalance.available) : currentBalance,
-        positions: positionsList,
-        price: parseFloat(ticker.lastPr),
+        balance: isNaN(currentBalance) ? previousBalance : currentBalance,
+        available: (futuresBalance && !isNaN(parseFloat(futuresBalance.available))) 
+          ? parseFloat(futuresBalance.available) 
+          : (isNaN(currentBalance) ? previousBalance : currentBalance),
+        positions: positionsList || [],
+        price: ticker ? parseFloat(ticker.lastPr) : 0.0,
         isMock: bitgetService.isMockMode()
       });
+    }
+
+    if (!ticker) {
+      throw new Error("Unable to fetch market price.");
     }
 
     // 2. Detect closed positions and perform audits if they closed at a loss
@@ -134,9 +161,11 @@ async function tick() {
         });
 
         const entryPrice = parseFloat(ticker.lastPr);
+        const slPct = parseFloat(decisionResult.stopLossPct) || 1.5;
+        const tpPct = parseFloat(decisionResult.takeProfitPct) || 3.0;
         const stopLossPrice = side === 'open_long' 
-          ? entryPrice * (1 - (decisionResult.stopLossPct / 100))
-          : entryPrice * (1 + (decisionResult.stopLossPct / 100));
+          ? entryPrice * (1 - (slPct / 100))
+          : entryPrice * (1 + (slPct / 100));
 
         // Add to local state to track stop-loss and audit conditions
         const newTradeRecord = {
@@ -146,8 +175,8 @@ async function tick() {
           entryPrice,
           stopLossPrice,
           takeProfitPrice: side === 'open_long'
-            ? entryPrice * (1 + (decisionResult.takeProfitPct / 100))
-            : entryPrice * (1 - (decisionResult.takeProfitPct / 100)),
+            ? entryPrice * (1 + (tpPct / 100))
+            : entryPrice * (1 - (tpPct / 100)),
           orderId: orderResult.orderId,
           timestamp: Date.now(),
           marketConditionsAtEntry: {
@@ -200,6 +229,8 @@ async function tick() {
 
   } catch (error) {
     broadcastLog('danger', `Error in trade tick: ${error.message}`);
+  } finally {
+    isTickRunning = false;
   }
 }
 

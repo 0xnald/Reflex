@@ -10,5 +10,10 @@
   "IF news contains 'rate hike' and sentiment score is negative, THEN restrict trading to short positions or stay flat.",
   "IF market volatility (ATR) is extreme and price dumps below support, THEN disable all long technical breakout entries.",
   "IF market volatility (ATR) is extreme and price dumps below support, THEN disable all long technical breakout entries.",
+  "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold.",
+  "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold.",
+  "IF news contains 'rate hike' and sentiment score is negative, THEN restrict trading to short positions or stay flat.",
+  "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold.",
+  "IF market volatility (ATR) is extreme and price dumps below support, THEN disable all long technical breakout entries.",
   "IF RSI is extremely overbought (> 80) on the 15m chart, THEN disable long orders and hold."
 ]

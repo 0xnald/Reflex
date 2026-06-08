@@ -38,6 +38,23 @@ async function request(method, path, params = {}, data = null) {
     return handleMockRequest(method, path, params, data);
   }
 
+  if (method.toUpperCase() === 'POST' && path === '/api/v2/mix/order/place-order' && data) {
+    const legacySide = data.side ? data.side.toLowerCase() : '';
+    if (legacySide === 'open_long') {
+      data.side = 'buy';
+      data.tradeSide = 'open';
+    } else if (legacySide === 'open_short') {
+      data.side = 'sell';
+      data.tradeSide = 'open';
+    } else if (legacySide === 'close_long') {
+      data.side = 'sell';
+      data.tradeSide = 'close';
+    } else if (legacySide === 'close_short') {
+      data.side = 'buy';
+      data.tradeSide = 'close';
+    }
+  }
+
   const timestamp = Date.now().toString();
   const queryString = method.toUpperCase() === 'GET' && Object.keys(params).length > 0 
     ? new URLSearchParams(params).toString() 
@@ -74,17 +91,27 @@ async function request(method, path, params = {}, data = null) {
   try {
     const response = await axios(config);
     if (response.data && response.data.code === '00000') {
-      return response.data.data;
+      let data = response.data.data;
+      if (path === '/api/v2/mix/account/accounts' && Array.isArray(data)) {
+        data = data.map(acc => ({
+          ...acc,
+          equity: acc.equity || acc.accountEquity
+        }));
+      }
+      if (path === '/api/v2/mix/position/all-position' && Array.isArray(data)) {
+        data = data.map(pos => ({
+          ...pos,
+          openPrice: pos.openPrice || pos.openPriceAvg
+        }));
+      }
+      return data;
     } else {
       throw new Error(`Bitget Error: ${response.data.msg || JSON.stringify(response.data)}`);
     }
   } catch (error) {
     console.error(`🔴 Bitget API Request Fail: [${method}] ${path}`, error.message);
-    // Fallback to mock mode if credentials fail, to prevent app crash
-    if (error.response && (error.response.status === 401 || error.response.status === 400)) {
-      console.log("⚠️ Authentication failed. Falling back to MOCK mode for execution safety.");
-      isMockMode = true;
-      return handleMockRequest(method, path, params, data);
+    if (error.response && error.response.data) {
+      console.error("   Response Data:", JSON.stringify(error.response.data));
     }
     throw error;
   }
@@ -161,11 +188,13 @@ function handleMockRequest(method, path, params, data) {
 
   // 2. Get Balances
   if (methodUpper === 'GET' && path === '/api/v2/mix/account/accounts') {
+    const totalEquity = (mockBalance + mockPositions.reduce((acc, p) => acc + p.pnl, 0)).toFixed(4);
     return [
       {
         marginCoin: 'USDT',
         available: mockBalance.toFixed(4),
-        equity: (mockBalance + mockPositions.reduce((acc, p) => acc + p.pnl, 0)).toFixed(4),
+        equity: totalEquity,
+        accountEquity: totalEquity,
         locked: '0.0000'
       }
     ];
@@ -236,5 +265,5 @@ export default {
   getTicker: (symbol) => request('GET', '/api/v2/mix/market/ticker', { productType: 'USDT-FUTURES', symbol }),
   getBalances: () => request('GET', '/api/v2/mix/account/accounts', { productType: 'USDT-FUTURES' }),
   getPositions: () => request('GET', '/api/v2/mix/position/all-position', { productType: 'USDT-FUTURES' }),
-  placeOrder: (data) => request('POST', '/api/v2/mix/order/place-order', {}, data)
+  placeOrder: (data) => request('POST', '/api/v2/mix/order/place-order', {}, { productType: 'USDT-FUTURES', ...data })
 };

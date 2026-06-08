@@ -1,96 +1,99 @@
-# ⚡ Reflex: Autonomous Self-Correcting AI Trading Agent
+# Reflex: Autonomous Self-Correcting AI Trading Agent
 
-Reflex is an autonomous cognitive trading agent built to interface with the **Bitget API** and powered by the **Qwen LLM engine**. 
+Reflex is an autonomous cognitive trading system built for the **Bitget Hackathon**. It integrates the **Qwen LLM Cognitive Engine** for market decision-making and features a real-time, self-correcting **Sentinel Auditor** loop that writes new rules dynamically on trade losses to prevent repeating past execution mistakes.
 
-Reflex does not just execute trades—it learns from its mistakes. The platform features an event-driven **Sentinel Auditor** that triggers automatically when any active position closes in a loss. The auditor performs a cognitive post-mortem analysis of the market conditions during entry, writes a detailed report, and generates a new concrete constraint rule (e.g., *“IF news sentiment is highly negative, THEN disable long Technical Breakout entries”*) which is appended to the **Rules Engine** in real-time. This prevents the agent from repeating the same trading mistakes.
-
----
-
-## 🚀 Key Features
-
-*   **Qwen Cognitive Engine**: Consults the Qwen LLM on every trading cycle to analyze technical structures, volume, and macro news catalysts before opening positions.
-*   **Sentinel Auditor (Self-Correction)**: Automatically audits failed trades in real-time, executing a post-mortem and writing new risk rules to protect capital.
-*   **Dynamic Rules Engine**: Active constraints are evaluated in real-time by the trading agent before any position is initiated.
-*   **USDT Portfolio Telemetry**: Shows real-time balance, available margin, leverage settings, and dynamic percentage profit trackers.
-*   **Interactive Simulation Dashboard**:
-    *   *Real-time charts* showing market prices and entry points.
-    *   *Execution Console* showing real-time logs of the agent's logic.
-    *   *Sentiment Injector* to test how the agent reacts to major macro/news events.
-    *   *System Configurations Modal* to set trading size allocations (AUTO, 0.01 BTC, 0.05 BTC, 0.10 BTC).
+```mermaid
+graph TD
+    A[Market Telemetry & Order Book] -->|Bitget API v2| B(Reflex Backend Agent Loop)
+    C[USDT Portfolio & Active Positions] -->|Bitget API v2| B
+    D[External Catalyst / Sentiment Injector] --> B
+    B -->|Rules Engine Constraints| E{Rule Validation}
+    E -->|All Rules Satisfied| F[Qwen Cognitive Engine]
+    E -->|Rule Violated| G[Halt / Skip Entry]
+    F -->|Trading Decision| H[Bitget Order Execution Layer]
+    H -->|Trade Closed at Loss| I[Sentinel Auditor]
+    I -->|Post-Mortem Analysis| J[Synthesize Constraint Rule]
+    J -->|Append Real-Time| B
+```
 
 ---
 
-## 🛠️ Tech Stack
+## 💡 The Core Innovation
 
-*   **Frontend**: React (Vite), Socket.io-client, Vanilla CSS (Terminal theme)
-*   **Backend**: Node.js, Express, Socket.io, Axios
-*   **Execution APIs**: Bitget API (USDT-Futures), Qwen Chat Completions API
+Most trading bots execute rigid, pre-defined rules or use static model prompts. When market regimes shift, they continue executing losing strategies. 
+
+Reflex solves this by closing the loop:
+1. **Cognitive Analysis**: For every tick (configured at 45 seconds to optimize latency and model throughput), the agent fetches real-time market telemetry, active positions, and recent news sentiment.
+2. **Sentinel Audit**: If a trade closes at a loss (due to stop-loss hit or market shift), the Sentinel Auditor runs a cognitive post-mortem analysis to identify the root cause of the failure.
+3. **Self-Correction**: The Auditor synthesizes a new natural-language rule (e.g. *“IF news contains 'rate hike' and sentiment is negative, THEN restrict trading to short positions or stay flat”*) and injects it directly into the Rules Engine in real-time. Subsequent ticks evaluate these rules before consulting the model for orders.
 
 ---
 
-## ⚙️ Setup & Configuration
+## 🛠️ Architecture & Tech Stack
 
-### 1. Prerequisites
-Ensure you have [Node.js](https://nodejs.org/) installed (v18+ recommended).
+- **Backend Node.js Server**: Manages the core 45-second agent tick loop, local state serialization (positions and rules persistence), and WebSocket communication.
+- **Frontend React Terminal**: A premium, high-density dashboard built with Vanilla CSS, featuring real-time telemetry charts, execution console logs, active positions, and rule states.
+- **Bitget V2 API Integration**: 
+  - `GET /api/v2/mix/market/ticker` (Ticker telemetry)
+  - `GET /api/v2/mix/account/accounts` (Portfolio balance and equity updates)
+  - `GET /api/v2/mix/position/all-position` (Active position monitoring)
+  - `POST /api/v2/mix/order/place-order` (Order placement for open/close actions)
+- **Qwen API Integration**: Powering the Qwen-3.6-Plus cognitive model for trade decision analysis and sentinel auditing reports.
 
-### 2. Environment Configuration
-Create a `.env` file in the root directory of the project:
+---
+
+## ⚙️ Installation & Configuration
+
+### 1. Requirements
+- Node.js (v18.0.0 or higher)
+- npm or yarn
+
+### 2. Environment Variables
+Create a `.env` file in the root directory:
 
 ```env
-# Port configuration
 PORT=3001
+AUTO_START_AGENT=false
 
-# --- QWEN COGNITIVE API ---
-# Provide your Qwen API key. If omitted, the agent runs in Mock/Simulation mode for cognitive tasks.
+# === QWEN COGNITIVE API CONFIGURATION ===
 BITGET_QWEN_API_KEY=your_qwen_api_key_here
 BITGET_QWEN_URL=https://hackathon.bitgetops.com/v1
 BITGET_QWEN_MODEL=qwen3.6-plus
 
-# --- BITGET API credentials ---
-# Provide your API credentials. If omitted, Reflex runs in a Mock Paper-Trading Sandbox.
+# === BITGET API CONFIGURATION ===
 BITGET_API_KEY=your_bitget_api_key_here
 BITGET_SECRET_KEY=your_bitget_secret_key_here
 BITGET_PASSPHRASE=your_bitget_passphrase_here
 BITGET_API_URL=https://api.bitget.com
-BITGET_LIVE_MODE=false # Set to true to execute live mainnet orders (Caution!)
-AUTO_START_AGENT=true # Set to true to start the trading tick loop on server boot
+BITGET_LIVE_MODE=false # Set to 'true' for Mainnet, 'false' for Paper/Testnet Trading (PAPTRADING: 1)
 ```
 
-*Note: If no API credentials are provided, the system automatically falls back to an offline **Mock/Paper Sandbox** (initializing with **$10,000.00** mock USD and simulated tickers) so you can test all features without risking capital.*
+*Note: If no API keys are provided in the `.env` file, Reflex automatically boots in a fully local simulated Sandbox Mode (pre-loaded with $10,000.00 mock USDT, simulated positions, and randomized walks) for risk-free evaluation.*
 
----
+### 3. Running Locally
 
-## 🏃 How to Run the Application
-
-### 1. Install Dependencies
-Run the following command in the project root:
+Install the required dependencies:
 ```bash
 npm install
 ```
 
-### 2. Start the Backend Server
-Run the Express/Socket.io backend:
+Start the backend server:
 ```bash
 npm run server
 ```
-This boots the backend on [http://localhost:3001](http://localhost:3001).
+The server will start on [http://localhost:3001](http://localhost:3001).
 
-### 3. Start the Frontend Dashboard
-In a separate terminal window, run the Vite development server:
+In a new terminal window, start the frontend client:
 ```bash
 npm run dev
 ```
-Open the local browser link displayed in your terminal (typically [http://localhost:5173](http://localhost:5173)) to view the Reflex dashboard.
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 💡 How to Use the Reflex Agent
+## 🕹️ Interactive Walkthrough
 
-1.  **Configure Trading Size**: 
-    Click the **Settings** tab in the sidebar, choose your trading size allocation (e.g., `0.01 BTC`, `0.05 BTC`, or `AUTO` to let the AI decide size based on conviction), and click **Confirm Configuration**.
-2.  **Deploy the Agent**: 
-    Click the **DEPLOY** button in the top right to start the execution cycle. The console will begin outputting scans and decisions.
-3.  **Inject Sentiment Catalysts**: 
-    Use the **Sentiment Injector** panel to feed external news (e.g., *"Federal Reserve announces unexpected interest rate hike"*). Watch the next agent tick digest this catalyst, consult the rules engine, and adjust its direction or halt entry.
-4.  **Audit Closed Position Loss**: 
-    When an active trade hits a simulated stop-loss, the Sentinel Auditor will take over, pop up the audit overlay, analyze the loss, update the rules panel, and output a detailed markdown report which you can **Inspect** at any time under the **Audit Center**.
+1. **Configure Sizing**: Open the **Settings** sidebar, adjust your trade sizes (AUTO size or specific BTC values), and click **Confirm**.
+2. **Deploy the Agent**: Hit the **DEPLOY** button in the top navigation bar. The dashboard will connect to the WebSocket and begin broadcasting ticks.
+3. **Catalyst Injection**: Enter a news item in the **Sentiment Injector** (e.g. *"US Fed announces aggressive rate hikes due to high inflation"*). Watch the agent ingest the news on the next tick and adjust its trading thesis accordingly.
+4. **Sentinel Audit**: If an active position triggers a stop-loss or closes in a loss, the dashboard overlay alerts you that the Sentinel Auditor is compiling its report. The synthesized rule will appear instantly in the **Rules Engine** panel, and the markdown post-mortem report will be added to the **Audit Center** for manual review.

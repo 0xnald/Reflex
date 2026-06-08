@@ -7,6 +7,7 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [balance, setBalance] = useState(10000.0);
   const [available, setAvailable] = useState(10000.0);
+  const [startingBalance, setStartingBalance] = useState(null);
   const [positions, setPositions] = useState([]);
   const [price, setPrice] = useState(0.0);
   const [isMock, setIsMock] = useState(true);
@@ -113,68 +114,87 @@ export default function App() {
 
     // Initial state loading
     socketRef.current.on('initial_state', (state) => {
-      setIsRunning(state.isRunning);
-      setCurrentNews(state.currentNews);
-      setRules(state.rules);
-      if (state.config) {
-        setConfig(state.config);
+      if (state) {
+        setIsRunning(state.isRunning);
+        setCurrentNews(state.currentNews);
+        setRules(state.rules || []);
+        if (state.config) {
+          setConfig(state.config);
+        }
       }
     });
 
     // Handle account and position updates
     socketRef.current.on('account_update', (data) => {
-      setBalance(data.balance);
-      setAvailable(data.available);
-      setPositions(data.positions);
-      setPrice(data.price);
-      setIsMock(data.isMock);
+      if (data) {
+        setBalance(data.balance);
+        setAvailable(data.available);
+        setPositions(data.positions || []);
+        setPrice(data.price || 0.0);
+        setIsMock(!!data.isMock);
 
-      // Track price history
-      setPriceHistory(prev => {
-        const next = [...prev, { time: new Date().toLocaleTimeString(), price: data.price }];
-        if (next.length > 50) next.shift(); // Keep last 50 ticks
-        return next;
-      });
+        // Dynamically track starting balance based on the first valid balance payload of the session
+        if (data.balance !== null && data.balance !== undefined && !isNaN(data.balance)) {
+          setStartingBalance(prev => prev === null ? data.balance : prev);
+        }
+
+        // Track price history
+        if (data.price !== undefined && data.price !== null && !isNaN(data.price) && data.price > 0) {
+          setPriceHistory(prev => {
+            const next = [...prev, { time: new Date().toLocaleTimeString(), price: data.price }];
+            if (next.length > 50) next.shift(); // Keep last 50 ticks
+            return next;
+          });
+        }
+      }
     });
 
     // Handle active log feed
     socketRef.current.on('agent_log', (logEntry) => {
-      setLogs(prev => [...prev, logEntry].slice(-100)); // Keep last 100 logs
+      if (logEntry) {
+        setLogs(prev => [...prev, logEntry].slice(-100)); // Keep last 100 logs
+      }
     });
 
     // Handle rules update
     socketRef.current.on('rules_update', (updatedRules) => {
-      setRules(updatedRules);
+      setRules(updatedRules || []);
     });
 
     // Handle auditing state changes
     socketRef.current.on('audit_state', (state) => {
-      setAuditState(state);
+      if (state) {
+        setAuditState(state);
+      }
     });
 
     // Handle audit completion
     socketRef.current.on('audit_result', (result) => {
-      setAuditResult(result);
-      setRules(result.rules);
-      setLatestRuleIndex(result.rules.length - 1);
-      
-      // Add a card to our Audit Center historical view
-      const newAuditCard = {
-        tradeId: `#00482`, // Increment or random
-        time: new Date().toLocaleTimeString(),
-        symbol: result.symbol || 'BTCUSDT',
-        pnl: '-1.00R', // Standardized risk unit
-        result: 'LOSS',
-        rootCause: result.report.substring(0, 100) + '...', // Short snippet
-        correction: result.newRule,
-        ruleAdded: true
-      };
-      setHistoricalAudits(prev => [newAuditCard, ...prev]);
+      if (result) {
+        setAuditResult(result);
+        setRules(result.rules || []);
+        if (Array.isArray(result.rules)) {
+          setLatestRuleIndex(result.rules.length - 1);
+        }
+        
+        // Add a card to our Audit Center historical view
+        const newAuditCard = {
+          tradeId: `#00482`, // Increment or random
+          time: new Date().toLocaleTimeString(),
+          symbol: result.symbol || 'BTCUSDT',
+          pnl: '-1.00R', // Standardized risk unit
+          result: 'LOSS',
+          rootCause: (result.report ? result.report.substring(0, 100) : '') + '...', // Short snippet
+          correction: result.newRule || '',
+          ruleAdded: true
+        };
+        setHistoricalAudits(prev => [newAuditCard, ...prev]);
 
-      // Auto-clear highlight after 10 seconds
-      setTimeout(() => {
-        setLatestRuleIndex(-1);
-      }, 10000);
+        // Auto-clear highlight after 10 seconds
+        setTimeout(() => {
+          setLatestRuleIndex(-1);
+        }, 10000);
+      }
     });
 
     return () => {
@@ -202,7 +222,8 @@ export default function App() {
     ctx.clearRect(0, 0, width, height);
 
     // Get min and max price for vertical scale
-    const prices = priceHistory.map(p => p.price);
+    const prices = priceHistory.map(p => p.price).filter(p => typeof p === 'number' && !isNaN(p) && p > 0);
+    if (prices.length < 2) return;
     let minPrice = Math.min(...prices);
     let maxPrice = Math.max(...prices);
     
@@ -249,13 +270,16 @@ export default function App() {
     ctx.fill();
 
     // Draw active positions reference lines on chart
-    if (positions.length > 0) {
+    if (Array.isArray(positions) && positions.length > 0) {
       positions.forEach(pos => {
-        const entryPrice = parseFloat(pos.openPrice);
+        if (!pos) return;
+        const entryPrice = parseFloat(pos.openPrice || '0');
+        if (isNaN(entryPrice) || entryPrice <= 0) return;
         const entryY = getY(entryPrice);
 
-        if (entryY > 20 && entryY < height - 20) {
-          ctx.strokeStyle = pos.holdSide === 'long' ? '#00ff66' : '#ff3366';
+        if (!isNaN(entryY) && entryY > 20 && entryY < height - 20) {
+          const holdSide = pos.holdSide || 'long';
+          ctx.strokeStyle = holdSide === 'long' ? '#00ff66' : '#ff3366';
           ctx.lineWidth = 1;
           ctx.setLineDash([5, 5]);
           ctx.beginPath();
@@ -264,7 +288,7 @@ export default function App() {
           ctx.stroke();
           ctx.setLineDash([]); // Reset
           
-          ctx.fillStyle = pos.holdSide === 'long' ? '#00ff66' : '#ff3366';
+          ctx.fillStyle = holdSide === 'long' ? '#00ff66' : '#ff3366';
           ctx.font = '10px JetBrains Mono';
           ctx.fillText(`ENTRY: ${entryPrice.toFixed(1)}`, 25, entryY - 6);
         }
@@ -473,10 +497,10 @@ export default function App() {
               <span className="tv-label">TRADING VIEW</span>
               <strong>BTCUSDT</strong>
               <span style={{ color: 'var(--neon-green)' }}>
-                ${price > 0 ? price.toLocaleString() : '---'}
+                ${(price !== null && price !== undefined && !isNaN(price) && price > 0) ? price.toLocaleString() : '---'}
               </span>
               <span style={{ fontSize: '11px', color: 'var(--neon-green)', opacity: 0.8 }}>
-                {isMock ? ' (Demo Sandbox)' : ' (Live API)'}
+                {isMock ? ' (Mock Sandbox)' : ' (Bitget API)'}
               </span>
             </div>
 
@@ -506,7 +530,7 @@ export default function App() {
                   <span className="panel-header-count">{rules.length} ACTIVE</span>
                 </div>
                 <div className="panel-body" style={{ padding: '0' }}>
-                  {rules.map((rule, idx) => {
+                  {Array.isArray(rules) && rules.map((rule, idx) => {
                     // Alternate row classes to match concept UI
                     let rowClass = "rule-row-success";
                     let statusLabel = "• ACTIVE";
@@ -595,14 +619,22 @@ export default function App() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
                   <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--neon-green)' }}>
-                    ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {(balance !== null && balance !== undefined && !isNaN(balance)) 
+                      ? `$${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                      : '$0.00'}
                   </div>
-                  <div className={balance >= 10000.0 ? 'text-gain' : 'text-loss'} style={{ fontSize: '14px', fontWeight: '700' }}>
-                    {balance >= 10000.0 ? '+' : ''}{(((balance - 10000.0) / 10000.0) * 100).toFixed(2)}%
-                  </div>
+                  {(balance !== null && balance !== undefined && !isNaN(balance) && startingBalance !== null && startingBalance !== undefined && startingBalance > 0) ? (
+                    <div className={balance >= startingBalance ? 'text-gain' : 'text-loss'} style={{ fontSize: '14px', fontWeight: '700' }}>
+                      {balance >= startingBalance ? '+' : ''}{(((balance - startingBalance) / startingBalance) * 100).toFixed(2)}%
+                    </div>
+                  ) : (
+                    <div className="text-gain" style={{ fontSize: '14px', fontWeight: '700' }}>
+                      +0.00%
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                  <span>Available: ${available.toFixed(2)}</span>
+                  <span>Available: ${(available !== null && available !== undefined && !isNaN(available)) ? available.toFixed(2) : '0.00'}</span>
                   <span>Leverage: Isolated 5x</span>
                 </div>
               </div>
@@ -611,32 +643,38 @@ export default function App() {
               <div id="positions-widget" className="panel">
                 <div className="panel-header">
                   <h3>ACTIVE POSITIONS</h3>
-                  <span className="panel-header-count">{positions.length} OPEN</span>
+                  <span className="panel-header-count">{Array.isArray(positions) ? positions.length : 0} OPEN</span>
                 </div>
                 <div className="panel-body">
-                  {positions.length === 0 ? (
+                  {!Array.isArray(positions) || positions.length === 0 ? (
                     <div style={{ color: 'var(--text-muted)', fontSize: '11px', fontStyle: 'italic' }}>
                       ~/reflex: no active positions listed on exchange.
                     </div>
                   ) : (
-                    positions.map((pos, idx) => (
-                      <div 
-                        key={idx} 
-                        className={`position-item-sidebar ${pos.holdSide === 'long' ? 'side-long' : 'side-short'}`}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', marginBottom: '4px' }}>
-                          <span>{pos.symbol} {pos.holdSide.toUpperCase()}</span>
-                          <span className={parseFloat(pos.unrealizedPL) >= 0 ? 'text-gain' : 'text-loss'}>
-                            {parseFloat(pos.unrealizedPL) >= 0 ? '+' : ''}
-                            {parseFloat(pos.unrealizedPL).toFixed(2)} USDT
-                          </span>
+                    positions.map((pos, idx) => {
+                      if (!pos) return null;
+                      const holdSide = pos.holdSide || 'long';
+                      const unrealizedPL = parseFloat(pos.unrealizedPL || '0');
+                      const openPrice = parseFloat(pos.openPrice || '0');
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`position-item-sidebar ${holdSide === 'long' ? 'side-long' : 'side-short'}`}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700', marginBottom: '4px' }}>
+                            <span>{pos.symbol} {holdSide.toUpperCase()}</span>
+                            <span className={unrealizedPL >= 0 ? 'text-gain' : 'text-loss'}>
+                              {unrealizedPL >= 0 ? '+' : ''}
+                              {unrealizedPL.toFixed(2)} USDT
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                            <span>Size: {pos.total || '0'} BTC</span>
+                            <span>Entry: ${openPrice.toFixed(1)}</span>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                          <span>Size: {pos.total} BTC</span>
-                          <span>Entry: ${parseFloat(pos.openPrice).toFixed(1)}</span>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -675,14 +713,14 @@ export default function App() {
                 </div>
                 <div className="panel-body console-logs-container" style={{ padding: '12px' }}>
                   <div ref={consoleBodyRef} className="console-body">
-                    {logs.length === 0 ? (
+                    {!Array.isArray(logs) || logs.length === 0 ? (
                       <div style={{ color: 'var(--text-muted)', fontSize: '11px', padding: '20px 0', textAlign: 'center', flex: 1 }}>
                         Reflex standby logs.
                       </div>
                     ) : (
                       logs.map((log, idx) => (
-                        <div key={idx} className={`console-log-row log-${log.type}`}>
-                          [{log.timestamp}] &gt; {log.message}
+                        <div key={idx} className={`console-log-row log-${log?.type || 'info'}`}>
+                          [{log?.timestamp || ''}] &gt; {log?.message || ''}
                         </div>
                       ))
                     )}
@@ -706,13 +744,13 @@ export default function App() {
               <span>LAT:</span> 42MS
             </div>
             <div className="status-stat">
-              <span>CYCLES:</span> {logs.length}
+              <span>CYCLES:</span> {Array.isArray(logs) ? logs.length : 0}
             </div>
             <div className="status-stat">
-              <span>RULES:</span> {rules.length}
+              <span>RULES:</span> {Array.isArray(rules) ? rules.length : 0}
             </div>
             <div className="status-stat">
-              <span>MEMORY:</span> {logs.length}/4096
+              <span>MEMORY:</span> {Array.isArray(logs) ? logs.length : 0}/4096
             </div>
             <div className="status-stat">
               <span>MODEL:</span> QWEN-3.6-PLUS
@@ -805,8 +843,10 @@ export default function App() {
               </div>
               <div>
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>EXECUTION MODE</span>
-                <span className={config?.liveMode ? 'text-loss' : 'text-gain'} style={{ fontWeight: '700' }}>
-                  {config?.liveMode ? '🔴 LIVE MAINNET' : '🟢 PAPER / MOCK SANDBOX (PAPTRADING: 1)'}
+                <span className={config?.isMock ? 'text-gain' : (config?.liveMode ? 'text-loss' : 'text-gain')} style={{ fontWeight: '700' }}>
+                  {config?.isMock 
+                    ? '🟢 LOCAL MOCK SANDBOX (NO API KEYS)' 
+                    : (config?.liveMode ? '🔴 LIVE MAINNET API' : '🟢 BITGET PAPER TRADING (TESTNET API)')}
                 </span>
               </div>
               <div>
