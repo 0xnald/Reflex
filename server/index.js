@@ -71,6 +71,23 @@ app.delete('/api/rule/:index', (req, res) => {
   res.json(agentLoop.getStatus());
 });
 
+app.post('/api/close-position', async (req, res) => {
+  const { symbol, holdSide } = req.body;
+  if (!symbol || !holdSide) {
+    return res.status(400).json({ error: 'Symbol and holdSide required' });
+  }
+  try {
+    const success = await agentLoop.manualClosePosition(symbol, holdSide);
+    if (success) {
+      res.json({ success: true, message: `Position for ${symbol} successfully closed.` });
+    } else {
+      res.status(404).json({ error: 'Matching position not found in active tracking state.' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Root check
 app.get('/', (req, res) => {
   res.send('Reflex Agent Server is running.');

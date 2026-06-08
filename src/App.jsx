@@ -421,7 +421,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('Agent');
   const [showSettings, setShowSettings] = useState(false);
   const [config, setConfig] = useState(null);
-  const [tempSize, setTempSize] = useState('auto');
+  const [tempSize, setTempSize] = useState('10%');
   const [sharingPosition, setSharingPosition] = useState(null);
 
   useEffect(() => {
@@ -763,6 +763,27 @@ export default function App() {
     }
   };
 
+  const handleClosePosition = async (symbol, holdSide) => {
+    if (!confirm(`Are you sure you want to manually close the ${symbol} ${holdSide.toUpperCase()} position?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/close-position`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol, holdSide })
+      });
+      const data = await res.json();
+      if (data.error) {
+        alert(`Error closing position: ${data.error}`);
+      } else {
+        console.log("Manual close success:", data.message);
+      }
+    } catch (err) {
+      console.error("Failed to request position close:", err);
+    }
+  };
+
   const updateTradingSize = (size) => {
     console.log("Emitting update_config for size:", size);
     if (socketRef.current) {
@@ -1063,9 +1084,20 @@ export default function App() {
                               {unrealizedPL.toFixed(2)} USDT
                             </span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                            <span>Size: {pos.total || '0'} BTC</span>
-                            <span className="share-hover-text" style={{ color: holdSide === 'long' ? 'var(--neon-green)' : 'var(--neon-red)', fontWeight: '700' }}>share card ↗</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', alignItems: 'center' }}>
+                            <span>Size: {pos.total || '0'} {pos.symbol.replace('USDT', '')}</span>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleClosePosition(pos.symbol, holdSide);
+                                }}
+                                className="btn-close-position"
+                              >
+                                CLOSE
+                              </button>
+                              <span className="share-hover-text" style={{ color: holdSide === 'long' ? 'var(--neon-green)' : 'var(--neon-red)', fontWeight: '700' }}>share ↗</span>
+                            </div>
                           </div>
                         </div>
                       );

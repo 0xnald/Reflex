@@ -43,28 +43,33 @@ async function getCompletion(systemPrompt, userPrompt) {
 }
 
 // Market analysis cognitive task
-export async function analyzeMarket(tickerData, activePositions, activeRules, recentNews) {
+export async function analyzeMarket(tickersData, activePositions, activeRules, recentNews, maxTradesToOpen) {
   const systemPrompt = `You are the core cognitive engine of 'Reflex', an autonomous self-correcting AI trading agent on Bitget.
-Your task is to analyze the market conditions and make trading decisions.
+Your task is to analyze the market conditions for multiple assets and decide which ones to trade.
+You can recommend opening trade actions for the available assets up to the limit of maxTradesToOpen (${maxTradesToOpen}).
+For each asset, you can choose "BUY", "SELL", or "HOLD".
 You MUST respond in JSON format with the following schema:
 {
-  "decision": "BUY" | "SELL" | "HOLD" | "CLOSE",
-  "reasoning": "A concise explanation of why this decision was made",
-  "size": 0.001, // quantity to trade (e.g. BTC count)
-  "stopLossPct": 1.5, // percentage for stop loss (e.g. 1.5 for 1.5% below entry)
-  "takeProfitPct": 3.0 // percentage for take profit
+  "trades": [
+    {
+      "symbol": "BTCUSDT",
+      "decision": "BUY" | "SELL" | "HOLD",
+      "reasoning": "A concise explanation of why this decision was made",
+      "size": 0.001, // recommended base size (calibrated for BTC sizing, e.g. 0.001 to 0.01)
+      "stopLossPct": 1.5, // percentage for stop loss (e.g. 1.5 for 1.5% below entry price)
+      "takeProfitPct": 3.0 // percentage for take profit
+    }
+  ]
 }
 
 Guidelines:
-- Incorporate active rules list. If an active rule forbids an entry under these conditions, you MUST choose HOLD or CLOSE.
-- Keep size small (e.g., 0.001 - 0.005 for BTC/ETH to manage risk).
-- Assess recent news sentiment and macro data alongside price levels.`;
+- Incorporate active rules list. If an active rule forbids an entry under these conditions, you MUST choose HOLD.
+- Recommend trades only if market conditions or news sentiment strongly support it.
+- Keep size small (e.g. 0.001 to 0.01 base size). Only recommend at most ${maxTradesToOpen} trade(s) with decision "BUY" or "SELL".`;
 
   const userPrompt = `
 === CURRENT MARKET DATA ===
-Asset: ${tickerData.symbol}
-Last Price: ${tickerData.lastPr}
-24h Change: ${tickerData.change24h}
+${tickersData.map(t => `Asset: ${t.symbol}\nLast Price: ${t.lastPr}\n24h Change: ${t.change24h}\n---`).join('\n')}
 
 === ACTIVE RULES (SELF-CORRECTED CONSTRAINTS) ===
 ${activeRules.length > 0 ? activeRules.map((r, i) => `${i + 1}. ${r}`).join('\n') : 'No rules recorded yet.'}
@@ -75,7 +80,7 @@ ${recentNews || 'No major news events currently.'}
 === CURRENT POSITIONS ===
 ${JSON.stringify(activePositions, null, 2)}
 
-Provide your trading decision. Remember, you must return JSON matching the specified format.`;
+Provide your trading decisions. Remember, you must return JSON matching the specified format.`;
 
   return getCompletion(systemPrompt, userPrompt);
 }

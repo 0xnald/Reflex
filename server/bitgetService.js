@@ -121,7 +121,9 @@ let mockPositions = []; // Active positions [{ symbol, marginMode, side, size, e
 let mockTickers = {
   'BTCUSDT': 68500.0,
   'ETHUSDT': 3500.0,
-  'SOLUSDT': 145.0
+  'SOLUSDT': 145.0,
+  'DOGEUSDT': 0.1425,
+  'BCHUSDT': 385.0
 };
 let mockNews = "";
 
