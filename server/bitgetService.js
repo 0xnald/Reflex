@@ -10,13 +10,11 @@ const PASSPHRASE = process.env.BITGET_PASSPHRASE;
 const API_URL = process.env.BITGET_API_URL || 'https://api.bitget.com';
 
 const hasKeys = API_KEY && SECRET_KEY && PASSPHRASE;
-let isMockMode = !hasKeys;
-
-if (isMockMode) {
-  console.log("⚠️ No Bitget API keys detected. Reflex is running in MOCK mode for Bitget execution.");
-} else {
-  console.log(`🔌 Bitget API client initialized pointing to: ${API_URL}`);
+if (!hasKeys) {
+  throw new Error("CRITICAL: Bitget API keys (BITGET_API_KEY, BITGET_SECRET_KEY, BITGET_PASSPHRASE) are missing from the environment (.env). Mock mode is disabled.");
 }
+let isMockMode = false;
+console.log(`🔌 Bitget API client initialized pointing to: ${API_URL}`);
 
 // Helper to generate the signature
 function generateSignature(timestamp, method, path, queryString = '', body = '') {

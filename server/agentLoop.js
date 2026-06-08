@@ -35,7 +35,7 @@ let tradingSizeConfig = "auto";
 
 // Local state to track active trades and detect closures/losses
 let activeTradesState = loadActiveTrades(); 
-let previousBalance = 10000.0;
+let previousBalance = 0.0;
 
 function loadRules() {
   try {
@@ -96,9 +96,12 @@ async function tick() {
       futuresBalance = balances ? balances.find(b => b.marginCoin === 'USDT') : null;
       if (futuresBalance) {
         currentBalance = parseFloat(futuresBalance.equity);
+      } else {
+        throw new Error("USDT margin balance not found on Bitget account.");
       }
     } catch (e) {
       broadcastLog('danger', `Bitget API Balance Error: ${e.message}`);
+      throw e; // Fail tick execution immediately, no trading with mock values!
     }
 
     let positionsList = [];
