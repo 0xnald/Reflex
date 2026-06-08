@@ -408,12 +408,13 @@ function PnLShareModal({ position, price, onClose }) {
 
 export default function App() {
   const [isRunning, setIsRunning] = useState(false);
-  const [balance, setBalance] = useState(10000.0);
-  const [available, setAvailable] = useState(10000.0);
+  const [balance, setBalance] = useState(null);
+  const [available, setAvailable] = useState(null);
   const [startingBalance, setStartingBalance] = useState(null);
   const [positions, setPositions] = useState([]);
   const [price, setPrice] = useState(0.0);
-  const [isMock, setIsMock] = useState(true);
+  const [isMock, setIsMock] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [rules, setRules] = useState([]);
   const [logs, setLogs] = useState([]);
   const [currentNews, setCurrentNews] = useState('');
@@ -515,6 +516,18 @@ export default function App() {
   // Connect to Backend WebSocket
   useEffect(() => {
     socketRef.current = io(BACKEND_URL);
+
+    socketRef.current.on('connect', () => {
+      setIsConnected(true);
+    });
+
+    socketRef.current.on('disconnect', () => {
+      setIsConnected(false);
+    });
+
+    socketRef.current.on('connect_error', () => {
+      setIsConnected(false);
+    });
 
     // Initial state loading
     socketRef.current.on('initial_state', (state) => {
@@ -913,6 +926,24 @@ export default function App() {
           </div>
         </header>
 
+        {!isConnected && (
+          <div style={{
+            backgroundColor: 'rgba(255, 51, 102, 0.15)',
+            borderBottom: '1px solid var(--neon-red)',
+            padding: '10px 20px',
+            fontSize: '12px',
+            color: 'var(--neon-red)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontFamily: 'var(--font-mono)',
+            zIndex: 10
+          }}>
+            <span>⚠️ OFFLINE: Frontend cannot reach backend at <code>{BACKEND_URL}</code>.</span>
+            <span style={{ fontSize: '10px', opacity: 0.8 }}>Verify VITE_BACKEND_URL in Vercel settings and trigger a Redeploy.</span>
+          </div>
+        )}
+
         {/* Dashboard Scrollable Workspace */}
         <div className="dashboard-body">
           
@@ -1040,7 +1071,9 @@ export default function App() {
               <div className="panel" style={{ padding: '16px 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                   <span style={{ color: 'var(--text-muted)' }}>USDT PORTFOLIO</span>
-                  <span style={{ color: 'var(--neon-green)', fontWeight: '700' }}>ONLINE</span>
+                  <span style={{ color: isConnected ? 'var(--neon-green)' : 'var(--neon-red)', fontWeight: '700' }}>
+                    {isConnected ? 'ONLINE' : 'DISCONNECTED'}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
                   <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--neon-green)' }}>
