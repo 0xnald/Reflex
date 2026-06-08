@@ -121,7 +121,7 @@ async function tick() {
         const newTradeRecord = {
           symbol,
           side,
-          size: decisionResult.size,
+          size: finalSize,
           entryPrice,
           stopLossPrice,
           takeProfitPrice: side === 'open_long'
