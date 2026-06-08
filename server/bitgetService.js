@@ -110,6 +110,14 @@ async function request(method, path, params = {}, data = null) {
     console.error(`🔴 Bitget API Request Fail: [${method}] ${path}`, error.message);
     if (error.response && error.response.data) {
       console.error("   Response Data:", JSON.stringify(error.response.data));
+      const body = error.response.data;
+      if (body && body.msg) {
+        throw new Error(`Bitget Error: ${body.msg} (code: ${body.code || 'unknown'})`);
+      } else if (body && body.message) {
+        throw new Error(`Bitget Error: ${body.message} (code: ${body.code || 'unknown'})`);
+      } else {
+        throw new Error(`Bitget Error: ${JSON.stringify(body)}`);
+      }
     }
     throw error;
   }
@@ -170,6 +178,24 @@ setInterval(() => {
 
 function handleMockRequest(method, path, params, data) {
   const methodUpper = method.toUpperCase();
+
+  // 5. Flash Close Positions
+  if (methodUpper === 'POST' && path === '/api/v2/mix/order/close-positions') {
+    const { symbol, holdSide } = data;
+    mockPositions = mockPositions.filter(p => {
+      const matchSymbol = !symbol || p.symbol === symbol;
+      const targetSide = holdSide === 'long' ? 'open_long' : 'open_short';
+      const matchSide = !holdSide || p.side === targetSide;
+      if (matchSymbol && matchSide) {
+        mockBalance += p.pnl; // Add pnl to balance
+        return false; // Remove
+      }
+      return true; // Keep
+    });
+    return {
+      msg: "Mock positions closed successfully."
+    };
+  }
 
   // 1. Get Ticker
   if (methodUpper === 'GET' && path === '/api/v2/mix/market/ticker') {
@@ -265,5 +291,6 @@ export default {
   getTicker: (symbol) => request('GET', '/api/v2/mix/market/ticker', { productType: 'USDT-FUTURES', symbol }),
   getBalances: () => request('GET', '/api/v2/mix/account/accounts', { productType: 'USDT-FUTURES' }),
   getPositions: () => request('GET', '/api/v2/mix/position/all-position', { productType: 'USDT-FUTURES' }),
-  placeOrder: (data) => request('POST', '/api/v2/mix/order/place-order', {}, { productType: 'USDT-FUTURES', ...data })
+  placeOrder: (data) => request('POST', '/api/v2/mix/order/place-order', {}, { productType: 'USDT-FUTURES', ...data }),
+  closePositions: (data) => request('POST', '/api/v2/mix/order/close-positions', {}, { productType: 'USDT-FUTURES', ...data })
 };

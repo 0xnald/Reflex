@@ -150,17 +150,13 @@ async function tick() {
       const hitTP = isLong ? (currentPrice >= trade.takeProfitPrice) : (currentPrice <= trade.takeProfitPrice);
 
       if (hitSL || hitTP) {
-        const closeSide = isLong ? 'close_long' : 'close_short';
+        const holdSide = isLong ? 'long' : 'short';
         broadcastLog('warning', `${trade.symbol} Stop Loss / Take Profit Hit at ${currentPrice.toFixed(2)}! Triggering position close...`);
         
         try {
-          await bitgetService.placeOrder({
+          await bitgetService.closePositions({
             symbol: trade.symbol,
-            marginMode: 'isolated',
-            side: closeSide,
-            size: trade.size.toString(),
-            orderType: 'market',
-            marginCoin: 'USDT'
+            holdSide: holdSide
           });
 
           trade.closed = true;
@@ -379,16 +375,11 @@ export async function manualClosePosition(symbol, holdSide) {
     }
   }
 
-  const closeSide = holdSide === 'long' ? 'close_long' : 'close_short';
-  broadcastLog('warning', `Manual close triggered for ${symbol} ${holdSide.toUpperCase()} of size ${closeSize}...`);
+  broadcastLog('warning', `Manual close triggered for ${symbol} ${holdSide.toUpperCase()}...`);
   
-  await bitgetService.placeOrder({
+  await bitgetService.closePositions({
     symbol,
-    marginMode: 'isolated',
-    side: closeSide,
-    size: closeSize,
-    orderType: 'market',
-    marginCoin: 'USDT'
+    holdSide: holdSide
   });
 
   if (tradeIndex > -1) {
