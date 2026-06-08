@@ -5,8 +5,8 @@ const BACKEND_URL = 'http://localhost:3001';
 
 export default function App() {
   const [isRunning, setIsRunning] = useState(false);
-  const [balance, setBalance] = useState(50000.0);
-  const [available, setAvailable] = useState(50000.0);
+  const [balance, setBalance] = useState(10000.0);
+  const [available, setAvailable] = useState(10000.0);
   const [positions, setPositions] = useState([]);
   const [price, setPrice] = useState(0.0);
   const [isMock, setIsMock] = useState(true);
@@ -30,10 +30,10 @@ export default function App() {
   const [tempSize, setTempSize] = useState('auto');
 
   useEffect(() => {
-    if (config?.tradingSize) {
+    if (config?.tradingSize && !showSettings) {
       setTempSize(config.tradingSize);
     }
-  }, [config]);
+  }, [config, showSettings]);
 
   const handleTabClick = (tabName, elementId) => {
     setActiveTab(tabName);
@@ -346,6 +346,7 @@ export default function App() {
   };
 
   const updateTradingSize = (size) => {
+    console.log("Emitting update_config for size:", size);
     if (socketRef.current) {
       socketRef.current.emit('update_config', { tradingSize: size });
     }
@@ -596,8 +597,8 @@ export default function App() {
                   <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--neon-green)' }}>
                     ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
-                  <div className={balance >= 50000.0 ? 'text-gain' : 'text-loss'} style={{ fontSize: '14px', fontWeight: '700' }}>
-                    {balance >= 50000.0 ? '+' : ''}{(((balance - 50000.0) / 50000.0) * 100).toFixed(2)}%
+                  <div className={balance >= 10000.0 ? 'text-gain' : 'text-loss'} style={{ fontSize: '14px', fontWeight: '700' }}>
+                    {balance >= 10000.0 ? '+' : ''}{(((balance - 10000.0) / 10000.0) * 100).toFixed(2)}%
                   </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '11px', color: 'var(--text-secondary)' }}>

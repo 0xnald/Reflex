@@ -13,7 +13,7 @@ let tradingSizeConfig = "auto";
 
 // Local state to track active trades and detect closures/losses
 let activeTradesState = []; 
-let previousBalance = 50000.0;
+let previousBalance = 10000.0;
 
 function loadRules() {
   try {
@@ -260,7 +260,8 @@ export function injectNews(news) {
 
 export function setTradingSize(size) {
   tradingSizeConfig = size;
-  broadcastLog('info', `Trading size configuration updated to: ${size.toUpperCase()}`);
+  const sizeStr = typeof size === 'string' ? size : String(size);
+  broadcastLog('info', `Trading size configuration updated to: ${sizeStr.toUpperCase()}`);
 }
 
 export function getStatus() {

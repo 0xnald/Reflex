@@ -91,7 +91,7 @@ async function request(method, path, params = {}, data = null) {
 }
 
 // --- Mock Data Store for Mock Mode ---
-let mockBalance = 50000.0; // Starting mock balance of 50,000 USDT
+let mockBalance = 10000.0; // Starting mock balance of 10,000 USDT
 let mockPositions = []; // Active positions [{ symbol, marginMode, side, size, entryPrice, openPrice, pnl, marginCoin }]
 let mockTickers = {
   'BTCUSDT': 68500.0,
