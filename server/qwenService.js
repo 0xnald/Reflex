@@ -65,11 +65,26 @@ You MUST respond in JSON format with the following schema:
 Guidelines:
 - Incorporate active rules list. If an active rule forbids an entry under these conditions, you MUST choose HOLD.
 - Recommend trades only if market conditions or news sentiment strongly support it.
-- Keep size small (e.g. 0.001 to 0.01 base size). Only recommend at most ${maxTradesToOpen} trade(s) with decision "BUY" or "SELL".`;
+- Keep size small (e.g. 0.001 to 0.01 base size). Only recommend at most ${maxTradesToOpen} trade(s) with decision "BUY" or "SELL".
+- Dynamic Volatility-Based Stops: Calibrate your stopLossPct and takeProfitPct based on each asset's 24h Volatility Spread.
+  - If Volatility Spread is low (e.g., < 2.5%), use tighter stops (e.g., stopLossPct around 1.0% to 1.5%, takeProfitPct around 2.0% to 3.0%).
+  - If Volatility Spread is high (e.g., > 5.0%), use wider stops (e.g., stopLossPct around 2.5% to 4.0%, takeProfitPct around 5.0% to 8.0%) to allow breathing room and avoid premature stop outs.`;
 
   const userPrompt = `
 === CURRENT MARKET DATA ===
-${tickersData.map(t => `Asset: ${t.symbol}\nLast Price: ${t.lastPr}\n24h Change: ${t.change24h}\n---`).join('\n')}
+${tickersData.map(t => {
+  const high = parseFloat(t.high24h) || 0;
+  const low = parseFloat(t.low24h) || 0;
+  const last = parseFloat(t.lastPr) || 1;
+  const spreadPct = last > 0 ? (((high - low) / last) * 100).toFixed(2) : '0.00';
+  return `Asset: ${t.symbol}
+Last Price: ${t.lastPr}
+24h Change: ${t.change24h}
+24h High: ${t.high24h}
+24h Low: ${t.low24h}
+24h Volatility Spread: ${spreadPct}%`;
+}).join('\n---\n')}
+---
 
 === ACTIVE RULES (SELF-CORRECTED CONSTRAINTS) ===
 ${activeRules.length > 0 ? activeRules.map((r, i) => `${i + 1}. ${r}`).join('\n') : 'No rules recorded yet.'}

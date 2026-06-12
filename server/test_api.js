@@ -41,7 +41,7 @@ async function testEndpoints() {
   try {
     console.log("\n4. Testing Qwen API...");
     const qwen = await qwenService.analyzeMarket(
-      { symbol: 'BTCUSDT', lastPr: '68000', change24h: '0.01' },
+      [{ symbol: 'BTCUSDT', lastPr: '68000', change24h: '0.01', high24h: '69000', low24h: '67000' }],
       [],
       [],
       "Test news"

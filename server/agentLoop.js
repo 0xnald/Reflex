@@ -185,6 +185,7 @@ async function tick() {
       if (availableTickers.length > 0) {
         broadcastLog('info', `Positions: ${openPositionsCount}/${MAX_CONCURRENT_POSITIONS} active. Available: ${availableSymbols.join(', ')}. Scanning market opportunity...`);
         
+        broadcastLog('thinking', `Invoking Qwen AI Engine (Model: ${process.env.BITGET_QWEN_MODEL || 'qwen3.6-plus'}) for market analysis...`);
         const decisionResult = await qwenService.analyzeMarket(
           availableTickers,
           positionsList,
@@ -192,6 +193,7 @@ async function tick() {
           currentNews,
           maxTradesToOpen
         );
+        broadcastLog('success', `Qwen AI analysis completed successfully.`);
 
         if (decisionResult && Array.isArray(decisionResult.trades)) {
           const recommendedTrades = decisionResult.trades
